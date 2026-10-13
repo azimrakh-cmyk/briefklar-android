@@ -2,6 +2,7 @@ name: Build Android app
 
 # Builds Briefklar for Android in the cloud and publishes the APK as a release.
 # Download link: https://github.com/<owner>/<repo>/releases/latest/download/Briefklar.apk
+# If the build fails, an issue with the error log is opened automatically.
 on:
   push:
     branches: [main]
@@ -9,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build:
@@ -27,26 +29,37 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - name: Create Android project
-        run: |
-          npm install --no-audit --no-fund
-          npx cap add android
-          for f in res/*; do
-            n=$(basename "$f"); d=${n%%__*}; b=${n#*__}
-            mkdir -p "android/app/src/main/res/$d"
-            cp "$f" "android/app/src/main/res/$d/$b"
-          done
-          sed -i '/android.permission.INTERNET/d' android/app/src/main/AndroidManifest.xml
-          sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"2.0.${{ github.run_number }}\"/" android/app/build.gradle
-          npx cap sync android
-          chmod +x android/gradlew
-
       - name: Build APK
-        working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        shell: bash
+        run: |
+          set -o pipefail
+          (
+            set -ex
+            npm install --no-audit --no-fund
+            npx cap add android
+            for f in res/*; do
+              n=$(basename "$f"); d=${n%%__*}; b=${n#*__}
+              mkdir -p "android/app/src/main/res/$d"
+              cp "$f" "android/app/src/main/res/$d/$b"
+            done
+            sed -i '/android.permission.INTERNET/d' android/app/src/main/AndroidManifest.xml
+            sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"2.0.${{ github.run_number }}\"/" android/app/build.gradle
+            npx cap sync android
+            chmod +x android/gradlew
+            cd android
+            ./gradlew assembleDebug --no-daemon --stacktrace
+            cd ..
+            cp android/app/build/outputs/apk/debug/app-debug.apk Briefklar.apk
+          ) 2>&1 | tee build.log
 
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Briefklar.apk
+      - name: Report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          touch build.log
+          { echo "Build #${{ github.run_number }} failed. Last lines of the log:"; echo '```'; tail -c 50000 build.log; echo '```'; } > body.md
+          gh issue create --repo "${{ github.repository }}" --title "Build #${{ github.run_number }} failed" --body-file body.md
 
       - uses: actions/upload-artifact@v4
         with:
