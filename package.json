@@ -1,0 +1,11 @@
+{
+  "name": "briefklar",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Briefklar for Android",
+  "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/cli": "8.5.2",
+    "@capacitor/core": "8.5.2"
+  }
+}

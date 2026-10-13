@@ -1,0 +1,6 @@
+{
+  "appId": "app.briefklar",
+  "appName": "Briefklar",
+  "webDir": "www",
+  "android": { "backgroundColor": "#EFF0EA" }
+}
